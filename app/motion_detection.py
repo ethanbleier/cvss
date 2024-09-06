@@ -2,7 +2,20 @@ import cv2
 import numpy as np
 import time
 from termcolor import colored
+import os
+from app.notifications import NotificationSystem
 
+# ASCII art for motion detection
+motion_symbols = ["🟥", "🟩"]
+
+# Check if we're in TEST mode
+TEST_MODE = os.environ.get('TEST', '0') == '1'
+
+# Todo: Add an 'System Arm" function that will arm the motion detection system
+
+
+
+# Todo: make this a class
 def detect_motion(frame, prev_frame, min_area=1000):
 
 	''' 
@@ -67,40 +80,58 @@ def main():
 	frame_count = 0
 	motion_detected = False  # Initialize motion_detected
 
+	# Initialize NotificationSystem (only if not in TEST mode)
+	if not TEST_MODE:
+		notification_system = NotificationSystem(
+			"your_email@gmail.com",
+			"your_app_password",
+			"recipient@example.com"
+		)
+
 	while True:
-		ret, frame = cap.read()
-		if not ret: 
-			print(f"Error: could not read frame {frame_count}.")
-			break
+		if TEST_MODE:
+			# In TEST mode, we'll simulate frames instead of capturing from camera
+			frame = np.random.randint(0, 256, (480, 640, 3), dtype=np.uint8)
+		else:
+			ret, frame = cap.read()
+			if not ret: 
+				print(f"Error: could not read frame {frame_count}.")
+				break
 
 		frame_count += 1
 
 		# main driver thing that does stuff
 		new_motion_detected = detect_motion(frame, prev_frame)
 
-		# Only print when the motion state changes
+		# only print when the motion state changes
 		if new_motion_detected != motion_detected:
 			motion_detected = new_motion_detected
 			if motion_detected:
-				print("\r🟥", end="", flush=True)
+				print(f"\r{motion_symbols[0]}", end="", flush=True)
+				if not TEST_MODE:
+					notification_system.send_email("Motion Detected", "Motion has been detected in your monitored area.")
 			else:
-				print("\r🟩", end="", flush=True)
+				print(f"\r{motion_symbols[1]}", end="", flush=True)
 
 		# read next frames. Prev becomes curr, curr gets next
 		prev_frame = frame.copy()
 
 		# Testing
-		cv2.imshow('Frame', frame)
+		if not TEST_MODE:
+			cv2.imshow('Frame', frame)
 
-		# break loop on q press
-		if cv2.waitKey(1) & 0xFF == ord('q'):
+		# break loop on q press or after 100 frames in TEST mode
+		if TEST_MODE and frame_count >= 100:
+			break
+		if not TEST_MODE and cv2.waitKey(1) & 0xFF == ord('q'):
 			break
 
 		# Add a small delay to slow down the output
 		time.sleep(0.1)
 
-	cap.release()
-	cv2.destroyAllWindows()
+	if not TEST_MODE:
+		cap.release()
+		cv2.destroyAllWindows()
 
 if __name__ == '__main__':
 	main()
